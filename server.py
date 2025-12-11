@@ -45,7 +45,6 @@ def lastPage(info):
 
 host = '127.0.0.1'
 port = 50000
-ThreadCount = 0
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host,port))
@@ -97,4 +96,5 @@ while True:
     client.send("How many results to return?:".encode())
 
     thread = threading.Thread(target=clientFunc, args=(client,))
+
     thread.start()
