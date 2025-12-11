@@ -9,7 +9,7 @@ lines_declared = input(message)
 client.send(lines_declared.encode())
 while True:
     message = client.recv(1024).decode()
-    if not message or message == "DONE":
+    if not message:
         break
     if message != "\n":
         print(message.strip())

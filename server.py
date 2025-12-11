@@ -1,7 +1,5 @@
 import socket
 import threading
-import scrape_funcs
-
 from bs4 import BeautifulSoup
 import requests
 
@@ -11,7 +9,6 @@ class CustomThread(threading.Thread):
                  args=(), kwargs={}, Verbose=None):
         threading.Thread.__init__(self, group, target, name, args, kwargs)
         self._return = None
-
     def run(self):
         if self._target is not None:
             self._return = self._target(*self._args, **self._kwargs)
@@ -19,12 +16,14 @@ class CustomThread(threading.Thread):
         threading.Thread.join(self, *args)
         return self._return
 
-
-def getBooksFromPage(pagenum, books=20):
+def getInfo(pagenum=1):
     url = f"https://knigomania.bg/new-books.html?p={pagenum}&product_list_mode=list"
     page = requests.get(url)
     soup = BeautifulSoup(page.text, "html.parser")
     info = soup.find_all("a")
+    return info
+
+def getBooksFromPage(info, books=20):
     res = [item.get_text().strip() for item in info if
            item.get("class") is not None and len(item.get("class")) == 1 and item.get("class")[
                0] == 'product-item-link']
@@ -32,37 +31,17 @@ def getBooksFromPage(pagenum, books=20):
         return [res[i] for i in range(0, books)]
     return res
 
-
-def getFirstBookOnPage(pagenum):
-    url = f"https://knigomania.bg/new-books.html?p={pagenum}&product_list_mode=list"
-    page = requests.get(url)
-    soup = BeautifulSoup(page.text, "html.parser")
-    info = soup.find_all("a")
+def lastPage(info):
+    res1 = 1
     for item in info:
-        if item.get("class") is not None and len(item.get("class")) == 1 and item.get("class")[
-               0] == 'product-item-link':
-            print(item.get_text().strip())
-            return item.get_text().strip()
-    return
-
-def lastPage(pagenum):
-    url = f"https://knigomania.bg/new-books.html?p={pagenum}&product_list_mode=list"
-    page = requests.get(url)
-    soup = BeautifulSoup(page.text, "html.parser")
-    info = soup.find_all("a")
-    res = [item.get_text().strip() for item in info if
-           item.get("class") is not None and len(item.get("class")) == 1 and item.get("class")[
-               0] == 'product-item-link']
-    if len(res) < 20:
-        return True
-    if res[0] == getBooksFromPage(pagenum + 1)[0]:
-        return True
-    return False
-
-def lastPage2(pagenum):
-    if getFirstBookOnPage(pagenum) == getFirstBookOnPage(pagenum + 1):
-        return True
-    return False
+        if item.get("class") == ["page","last"]:
+            res1 = item.get_text().strip().split("\n")[1]
+    res1 = int(res1)
+    info = getInfo(res1)
+    res2 = [item.get_text().strip() for item in info if
+            item.get("class") is not None and len(item.get("class")) == 1 and item.get("class")[
+                0] == 'product-item-link']
+    return res1,len(res2)
 
 host = '127.0.0.1'
 port = 50000 #9999
@@ -76,28 +55,48 @@ server.listen()
 clients = []
 #res = queue.Queue() #Kak da vyrna rezultatite na klienta???????
 def clientFunc(client):
-    msg = int(client.recv(1024))
+    try:
+        msg = int(client.recv(1024).decode())
+    except:
+        client.send("Invalid input.".encode())
+        client.close()
+        return
     print(msg)
+    if msg<0:
+        client.send("Invalid input.".encode())
+        client.close()
+        return
     pages = msg // 20
     rest = msg % 20
+    lp = lastPage(getInfo())
+    all_pages = lp[0]
+    last_page_books = lp[1]
+    if pages + 1 > all_pages or (pages + 1 == all_pages and rest > last_page_books):
+        client.send("Not enough results. Returning all available.".encode())
+        #client.close()
+        #return
+        pages = all_pages
+        rest = 0
     for i in range(1,pages + 1):
-        t = CustomThread(target=scrape_funcs.getBooksFromPage, args=(i,))
+        t = CustomThread(target=getBooksFromPage, args=(getInfo(i),))
         t.start()
         res = t.join()
         print(res)
         for book in res:
-            client.send(book.strip().encode())
-            #client.send("\n".encode())
-
-    t = CustomThread(target=scrape_funcs.getBooksFromPage, args=(pages + 1,rest))
-    t.start()
-    res = t.join()
-    print(res)
-    for book in res:
-        client.send(book.encode())
+            client.send(book.encode())
+            client.send("\n".encode())
+    if rest>0:
+        t = CustomThread(target=getBooksFromPage, args=(getInfo(pages + 1),rest))
+        t.start()
+        res = t.join()
+        print(res)
+        for book in res:
+            client.send(book.encode())
+            client.send("\n".encode())
     #client.send(str(t.join()).encode())
-    client.send("DONE".encode())
+    #client.send("DONE".encode())
     client.close()
+    return
 
 while True:
     client, address = server.accept()
