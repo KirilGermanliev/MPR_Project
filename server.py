@@ -44,7 +44,7 @@ def lastPage(info):
     return res1,len(res2)
 
 host = '127.0.0.1'
-port = 50000 #9999
+port = 50000
 ThreadCount = 0
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -52,8 +52,6 @@ server.bind((host,port))
 server.listen()
 
 
-clients = []
-#res = queue.Queue() #Kak da vyrna rezultatite na klienta???????
 def clientFunc(client):
     try:
         msg = int(client.recv(1024).decode())
@@ -73,8 +71,6 @@ def clientFunc(client):
     last_page_books = lp[1]
     if pages + 1 > all_pages or (pages + 1 == all_pages and rest > last_page_books):
         client.send("Not enough results. Returning all available.".encode())
-        #client.close()
-        #return
         pages = all_pages
         rest = 0
     for i in range(1,pages + 1):
@@ -93,17 +89,12 @@ def clientFunc(client):
         for book in res:
             client.send(book.encode())
             client.send("\n".encode())
-    #client.send(str(t.join()).encode())
-    #client.send("DONE".encode())
     client.close()
     return
 
 while True:
     client, address = server.accept()
-    clients.append(client)
     client.send("How many results to return?:".encode())
-    #ans = client.recv(1024).decode()
-    #print(ans)
 
     thread = threading.Thread(target=clientFunc, args=(client,))
     thread.start()
