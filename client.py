@@ -15,5 +15,5 @@ client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 try:
     client.connect(('127.0.0.1', 50000))
     work()
-except:
+except Exception:
     print("Failed to connect with server.")
